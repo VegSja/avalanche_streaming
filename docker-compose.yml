@@ -112,12 +112,14 @@ services:
       - EXECUTOR=Sequential
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       - AIRFLOW_WEBSERVER_SECRET_KEY=this_is_a_very_secured_key
+      - PYTHONPATH=/opt/airflow/src:/opt/airflow/dags:${PYTHONPATH}
     logging:
       options:
         max-size: 10m
         max-file: "3"
     volumes:
-      - ./dags:/opt/airflow/dags
+      - ./src/:/opt/airflow/src
+      - ./src/dags:/opt/airflow/dags
       - ./script/entrypoint.sh:/opt/airflow/script/entrypoint.sh
       - ./requirements.txt:/opt/airflow/requirements.txt
     ports:
@@ -136,7 +138,8 @@ services:
       webserver:
         condition: service_healthy
     volumes:
-      - ./dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src/
+      - ./src/dags:/opt/airflow/dags
       - ./script/entrypoint.sh:/opt/airflow/script/entrypoint.sh
       - ./requirements.txt:/opt/airflow/requirements.txt
     environment:
@@ -144,6 +147,7 @@ services:
       - EXECUTOR=Sequential
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       - AIRFLOW_WEBSERVER_SECRET_KEY=this_is_a_very_secured_key
+      - PYTHONPATH=/opt/airflow/src:/opt/airflow/dags:${PYTHONPATH}
     command: bash -c "pip install -r ./requirements.txt && airflow db upgrade && airflow scheduler"
     networks:
       - confluent
