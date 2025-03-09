@@ -7,29 +7,38 @@
 
   outputs = { self, nixpkgs }: 
   let
-    pkgs = import nixpkgs { system = "x86_64-darwin"; };  # Change to "x86_64-linux" if on Linux
+    supportedSystems = [ "x86_64-darwin" "aarch64-darwin" "x86_64-linux" "aarch64-linux" ];
+    forAllSystems = f: builtins.listToAttrs (map (system: { name = system; value = f system; }) supportedSystems);
   in {
-    devShells.x86_64-darwin.default = pkgs.mkShell {
-      buildInputs = with pkgs; [
-        docker-compose
-        python311
-        python311Packages.virtualenv
-        python311Packages.pip
-        kafka
-        postgresql
-        curl
-        netcat
-      ];
+    devShells = forAllSystems (system:
+      let
+        pkgs = import nixpkgs { inherit system; };
+      in {
+        default = pkgs.mkShell {
+          buildInputs = with pkgs; [
+            docker-compose
+            python311
+            python311Packages.virtualenv
+            python311Packages.pip
+            apacheKafka
+            postgresql
+            curl
+            netcat
+            zsh
+          ];
 
-      shellHook = ''
-        echo "Setting up Python virtual environment..."
-        python -m venv venv
-        source venv/bin/activate
-        echo "Installing Python dependencies..."
-        pip install --upgrade pip
-        pip install -r requirements.txt
-        echo "Development environment is ready!"
-      '';
-    };
+          shellHook = ''
+            zsh
+            echo "Setting up Python virtual environment..."
+            python -m venv venv
+            source venv/bin/activate
+            echo "Installing Python dependencies..."
+            pip install --upgrade pip
+            pip install -r requirements.txt
+            echo "Development environment is ready!"
+          '';
+        };
+      }
+    );
   };
 }
