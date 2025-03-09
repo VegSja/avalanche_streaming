@@ -109,11 +109,3 @@ If you'd like to contribute to this project:
 4. Push to the branch (`git push origin feature-branch`).
 5. Create a new Pull Request.
 
-## License 📜
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-🎉 Thanks for checking out the **Profile Streaming Pipeline**! Feel free to ask any questions or open issues if something isn't working as expected. Happy streaming! 🚀
-```
