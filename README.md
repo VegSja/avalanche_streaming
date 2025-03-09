@@ -51,6 +51,16 @@ docker-compose up -d
 
 This will start the necessary services such as Zookeeper, Kafka, Airflow, Cassandra, etc.
 
+### Submitting Spark jobs
+To submit spark jobs run the following command:
+```sh
+docker compose exec -it spark-master spark-submit \
+  --master spark://spark-master:7077 \
+  --deploy-mode client \
+  --conf "spark.cassandra.connection.host=cassandra_db" \
+  --conf "spark.jars=/opt/spark/spark-libs/spark-cassandra-connector_2.12-3.3.0.jar,/opt/spark/spark-libs/spark-sql-kafka-0-10_2.12-3.3.2.jar,/opt/spark/spark-libs/commons-pool2-2.11.1.jar,/opt/spark/spark-libs/kafka-clients-3.3.1.jar" \
+  /opt/spark/spark-jobs/avalanche_processor.py
+```
 ### Monitoring and Management 🖥️
 
 - **Airflow UI**: Access the web server at [http://localhost:8080](http://localhost:8080) to monitor and manage the pipeline.
