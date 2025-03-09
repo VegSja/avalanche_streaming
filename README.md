@@ -5,6 +5,7 @@ A data pipeline that streams avalanche data from [varsom.no](https://www.varsom.
 This project leverages Docker Compose for easy setup and deployment, while ensuring reproducibility with a provided Nix flake. 🐳
 
 ## Architecture Overview 🔄
+![Pipeline Architecture](architecture.png)
 
 The pipeline is composed of several services, each playing a key role in the data streaming process:
 
@@ -15,6 +16,8 @@ The pipeline is composed of several services, each playing a key role in the dat
 5. **Docker Compose**: Handles the orchestration of all the services.
 6. **Nix Flake**: Provides a reproducible development environment.
 7. **Airflow Web UI & Kafka Management**: Monitors the data pipeline.
+
+
 
 ## Getting Started 🚀
 
