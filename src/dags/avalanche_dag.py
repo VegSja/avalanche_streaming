@@ -125,13 +125,11 @@ def fetch_data_and_store_in_kafka():
         logging.error(f"An error occured: {e}")
 
 
-fetch_data_and_store_in_kafka()
-
 with DAG(
     "avalanche_fetcher",
     default_args=default_args,
     schedule_interval="@daily",
-    catchup=True,
+    catchup=False,
 ) as dag:
 
     streaming_task = PythonOperator(
