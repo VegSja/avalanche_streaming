@@ -5,7 +5,13 @@ import uuid
 from cassandra.cluster import Cluster, Session
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import expr, from_json, col, udf
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType, TimestampType
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType,
+    IntegerType,
+    TimestampType,
+)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -142,11 +148,14 @@ def create_spark_connection() -> Optional[SparkSession]:
         # Create SparkSession and load local JARs
         s_conn = (
             SparkSession.builder.appName("SparkAvalancheProcessor")
-            .config('spark.jars.packages', "com.datastax.spark:spark-cassandra-connector_2.12:3.3.0,"
-                                        "org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.2,"
-                                        "org.apache.commons:commons-pool2:2.8.0,"
-                                        "org.apache.kafka:kafka-clients:2.5.0,"
-                                        "org.apache.spark:spark-token-provider-kafka-0-10_2.12:3.3.2") \
+            .config(
+                "spark.jars.packages",
+                "com.datastax.spark:spark-cassandra-connector_2.12:3.3.0,"
+                "org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.2,"
+                "org.apache.commons:commons-pool2:2.8.0,"
+                "org.apache.kafka:kafka-clients:2.5.0,"
+                "org.apache.spark:spark-token-provider-kafka-0-10_2.12:3.3.2",
+            )
             .config("spark.cassandra.connection.host", "cassandra_db")
             .getOrCreate()
         )
@@ -155,7 +164,7 @@ def create_spark_connection() -> Optional[SparkSession]:
             s_conn.sparkContext.setLogLevel("ERROR")
             logging.info("Spark connection created successfully!")
         else:
-            raise Exception('Could not create spark session. Stopping...')
+            raise Exception("Could not create spark session. Stopping...")
     except Exception as e:
         logging.error(f"Couldn't create the spark session due to exception {e}")
 
@@ -225,22 +234,24 @@ def create_selection_df_from_kafka(spark_df: DataFrame) -> DataFrame:
         DataFrame: A processed DataFrame with the selected fields from the Kafka JSON payload.
     """
     # Define the schema based on the VarsomAvalancheResponse class (avalanche_warning table)
-    schema = StructType([
-        StructField("RegId", IntegerType(), False),
-        StructField("RegionId", IntegerType(), False),
-        StructField("RegionName", StringType(), True),
-        StructField("RegionTypeId", IntegerType(), False),
-        StructField("RegionTypeName", StringType(), True),
-        StructField("DangerLevel", StringType(), True),
-        StructField("ValidFrom", TimestampType(), True),
-        StructField("ValidTo", TimestampType(), True),
-        StructField("NextWarningTime", TimestampType(), True),
-        StructField("PublishTime", TimestampType(), True),
-        StructField("DangerIncreaseTime", TimestampType(), True),
-        StructField("DangerDecreaseTime", TimestampType(), True),
-        StructField("MainText", StringType(), True),
-        StructField("LangKey", IntegerType(), False),
-    ])
+    schema = StructType(
+        [
+            StructField("RegId", IntegerType(), False),
+            StructField("RegionId", IntegerType(), False),
+            StructField("RegionName", StringType(), True),
+            StructField("RegionTypeId", IntegerType(), False),
+            StructField("RegionTypeName", StringType(), True),
+            StructField("DangerLevel", StringType(), True),
+            StructField("ValidFrom", TimestampType(), True),
+            StructField("ValidTo", TimestampType(), True),
+            StructField("NextWarningTime", TimestampType(), True),
+            StructField("PublishTime", TimestampType(), True),
+            StructField("DangerIncreaseTime", TimestampType(), True),
+            StructField("DangerDecreaseTime", TimestampType(), True),
+            StructField("MainText", StringType(), True),
+            StructField("LangKey", IntegerType(), False),
+        ]
+    )
 
     # Process Kafka data and apply the schema
     sel = (
@@ -251,7 +262,9 @@ def create_selection_df_from_kafka(spark_df: DataFrame) -> DataFrame:
 
     return sel
 
+
 uuid_udf = udf(lambda: str(uuid.uuid4()), StringType())
+
 
 def rename_columns(df: DataFrame) -> DataFrame:
     """
@@ -263,22 +276,24 @@ def rename_columns(df: DataFrame) -> DataFrame:
     Returns:
         DataFrame: A new DataFrame with renamed columns.
     """
-    return df \
-        .withColumnRenamed("RegId", "reg_id") \
-        .withColumnRenamed("RegionId", "region_id") \
-        .withColumnRenamed("RegionName", "region_name") \
-        .withColumnRenamed("RegionTypeId", "region_type_id") \
-        .withColumnRenamed("RegionTypeName", "region_type_name") \
-        .withColumnRenamed("DangerLevel", "danger_level") \
-        .withColumnRenamed("ValidFrom", "valid_from") \
-        .withColumnRenamed("ValidTo", "valid_to") \
-        .withColumnRenamed("NextWarningTime", "next_warning_time") \
-        .withColumnRenamed("PublishTime", "publish_time") \
-        .withColumnRenamed("DangerIncreaseTime", "danger_increase_time") \
-        .withColumnRenamed("DangerDecreaseTime", "danger_decrease_time") \
-        .withColumnRenamed("MainText", "main_text") \
-        .withColumnRenamed("LangKey", "lang_key") \
-        .withColumn("id", uuid_udf())  # ⬅ Generate UUID properly
+    return (
+        df.withColumnRenamed("RegId", "reg_id")
+        .withColumnRenamed("RegionId", "region_id")
+        .withColumnRenamed("RegionName", "region_name")
+        .withColumnRenamed("RegionTypeId", "region_type_id")
+        .withColumnRenamed("RegionTypeName", "region_type_name")
+        .withColumnRenamed("DangerLevel", "danger_level")
+        .withColumnRenamed("ValidFrom", "valid_from")
+        .withColumnRenamed("ValidTo", "valid_to")
+        .withColumnRenamed("NextWarningTime", "next_warning_time")
+        .withColumnRenamed("PublishTime", "publish_time")
+        .withColumnRenamed("DangerIncreaseTime", "danger_increase_time")
+        .withColumnRenamed("DangerDecreaseTime", "danger_decrease_time")
+        .withColumnRenamed("MainText", "main_text")
+        .withColumnRenamed("LangKey", "lang_key")
+        .withColumn("id", uuid_udf())
+    )  # ⬅ Generate UUID properly
+
 
 if __name__ == "__main__":
     try:
