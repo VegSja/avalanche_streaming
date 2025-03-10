@@ -145,7 +145,7 @@ def create_spark_connection() -> Optional[SparkSession]:
                 "spark.jars",
                 "/opt/spark/spark-libs/commons-pool2-2.11.1.jar,"
                 "/opt/spark/spark-libs/kafka-clients-3.3.1.jar,"
-                "/opt/spark/spark-libs/spark-cassandra-connector_2.12-3.3.0.jar,"
+                "/opt/spark/spark-libs/spark-cassandra-connector_2.12-3.5.1.jar,"
                 "/opt/spark/spark-libs/spark-sql-kafka-0-10_2.12-3.3.2.jar"
             )
             .config("spark.cassandra.connection.host", "cassandra_db")
