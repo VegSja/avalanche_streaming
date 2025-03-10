@@ -1,10 +1,11 @@
 import logging
 from typing import Optional, Dict, Any
+import uuid
 
 from cassandra.cluster import Cluster, Session
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import expr, from_json, col
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+from pyspark.sql.functions import expr, from_json, col, udf
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, TimestampType
 
 logging.basicConfig(level=logging.INFO)
 
@@ -45,12 +46,12 @@ def create_table(session: Session) -> None:
         region_type_id INT,   -- RegionTypeId
         region_type_name TEXT, -- RegionTypeName (nullable)
         danger_level TEXT,    -- DangerLevel (nullable)
-        valid_from TEXT,      -- ValidFrom (nullable)
-        valid_to TEXT,        -- ValidTo (nullable)
-        next_warning_time TEXT, -- NextWarningTime (nullable)
-        publish_time TEXT,    -- PublishTime (nullable)
-        danger_increase_time TEXT, -- DangerIncreaseTime (nullable)
-        danger_decrease_time TEXT, -- DangerDecreaseTime (nullable)
+        valid_from TIMESTAMP,      -- ValidFrom (nullable)
+        valid_to TIMESTAMP,        -- ValidTo (nullable)
+        next_warning_time TIMESTAMP, -- NextWarningTime (nullable)
+        publish_time TIMESTAMP,    -- PublishTime (nullable)
+        danger_increase_time TIMESTAMP, -- DangerIncreaseTime (nullable)
+        danger_decrease_time TIMESTAMP, -- DangerDecreaseTime (nullable)
         main_text TEXT,       -- MainText (nullable)
         lang_key INT          -- LangKey
     );
@@ -224,39 +225,22 @@ def create_selection_df_from_kafka(spark_df: DataFrame) -> DataFrame:
         DataFrame: A processed DataFrame with the selected fields from the Kafka JSON payload.
     """
     # Define the schema based on the VarsomAvalancheResponse class (avalanche_warning table)
-    schema = StructType(
-        [
-            StructField("id", StringType(), False),  # UUID as a string
-            StructField("reg_id", IntegerType(), False),  # RegId as Integer
-            StructField("region_id", IntegerType(), False),  # RegionId as Integer
-            StructField("region_name", StringType(), True),  # RegionName is nullable
-            StructField(
-                "region_type_id", IntegerType(), False
-            ),  # RegionTypeId as Integer
-            StructField(
-                "region_type_name", StringType(), True
-            ),  # RegionTypeName is nullable
-            StructField("danger_level", StringType(), True),  # DangerLevel is nullable
-            StructField(
-                "valid_from", StringType(), True
-            ),  # ValidFrom is nullable (could be Date or String)
-            StructField(
-                "valid_to", StringType(), True
-            ),  # ValidTo is nullable (could be Date or String)
-            StructField(
-                "next_warning_time", StringType(), True
-            ),  # NextWarningTime is nullable
-            StructField("publish_time", StringType(), True),  # PublishTime is nullable
-            StructField(
-                "danger_increase_time", StringType(), True
-            ),  # DangerIncreaseTime is nullable
-            StructField(
-                "danger_decrease_time", StringType(), True
-            ),  # DangerDecreaseTime is nullable
-            StructField("main_text", StringType(), True),  # MainText is nullable
-            StructField("lang_key", IntegerType(), False),  # LangKey as Integer
-        ]
-    )
+    schema = StructType([
+        StructField("RegId", IntegerType(), False),
+        StructField("RegionId", IntegerType(), False),
+        StructField("RegionName", StringType(), True),
+        StructField("RegionTypeId", IntegerType(), False),
+        StructField("RegionTypeName", StringType(), True),
+        StructField("DangerLevel", StringType(), True),
+        StructField("ValidFrom", TimestampType(), True),
+        StructField("ValidTo", TimestampType(), True),
+        StructField("NextWarningTime", TimestampType(), True),
+        StructField("PublishTime", TimestampType(), True),
+        StructField("DangerIncreaseTime", TimestampType(), True),
+        StructField("DangerDecreaseTime", TimestampType(), True),
+        StructField("MainText", StringType(), True),
+        StructField("LangKey", IntegerType(), False),
+    ])
 
     # Process Kafka data and apply the schema
     sel = (
@@ -267,29 +251,66 @@ def create_selection_df_from_kafka(spark_df: DataFrame) -> DataFrame:
 
     return sel
 
+uuid_udf = udf(lambda: str(uuid.uuid4()), StringType())
+
+def rename_columns(df: DataFrame) -> DataFrame:
+    """
+    Renames columns from Kafka's camelCase format to Cassandra's snake_case format.
+
+    Args:
+        df (DataFrame): The Spark DataFrame with original Kafka column names.
+
+    Returns:
+        DataFrame: A new DataFrame with renamed columns.
+    """
+    return df \
+        .withColumnRenamed("RegId", "reg_id") \
+        .withColumnRenamed("RegionId", "region_id") \
+        .withColumnRenamed("RegionName", "region_name") \
+        .withColumnRenamed("RegionTypeId", "region_type_id") \
+        .withColumnRenamed("RegionTypeName", "region_type_name") \
+        .withColumnRenamed("DangerLevel", "danger_level") \
+        .withColumnRenamed("ValidFrom", "valid_from") \
+        .withColumnRenamed("ValidTo", "valid_to") \
+        .withColumnRenamed("NextWarningTime", "next_warning_time") \
+        .withColumnRenamed("PublishTime", "publish_time") \
+        .withColumnRenamed("DangerIncreaseTime", "danger_increase_time") \
+        .withColumnRenamed("DangerDecreaseTime", "danger_decrease_time") \
+        .withColumnRenamed("MainText", "main_text") \
+        .withColumnRenamed("LangKey", "lang_key") \
+        .withColumn("id", uuid_udf())  # ⬅ Generate UUID properly
 
 if __name__ == "__main__":
-    spark_conn = create_spark_connection()
+    try:
+        spark_conn = create_spark_connection()
+        if spark_conn is None:
+            raise Exception("Spark connection failed!")
 
-    if spark_conn is not None:
         spark_df = connect_to_kafka(spark_conn)
-        if spark_df is not None:
-            selection_df = create_selection_df_from_kafka(spark_df)
-            selection_df = selection_df.withColumn("id", expr("uuid()"))  # Generates a UUID if missing
-            session = create_cassandra_connection()
+        if spark_df is None:
+            raise Exception("Kafka connection failed!")
 
-            if session is not None:
-                create_keyspace(session)
-                create_table(session)
+        selection_df = create_selection_df_from_kafka(spark_df)
+        selection_df = rename_columns(selection_df)
 
-                logging.info("Streaming is being started...")
+        session = create_cassandra_connection()
+        if session is None:
+            raise Exception("Cassandra connection failed!")
 
-                streaming_query = (
-                    selection_df.writeStream.format("org.apache.spark.sql.cassandra")
-                    .option("checkpointLocation", "/tmp/checkpoint")
-                    .option("keyspace", "spark_avalanche")
-                    .option("table", "avalanche_warning")
-                    .start()
-                )
+        create_keyspace(session)
+        create_table(session)
 
-                streaming_query.awaitTermination()
+        logging.info("Streaming is being started...")
+
+        streaming_query = (
+            selection_df.writeStream.format("org.apache.spark.sql.cassandra")
+            .option("checkpointLocation", "/tmp/checkpoint")
+            .option("keyspace", "spark_avalanche")
+            .option("table", "avalanche_warning")
+            .start()
+        )
+
+        streaming_query.awaitTermination()
+
+    except Exception as e:
+        logging.error(f"Error occurred: {str(e)}", exc_info=True)
