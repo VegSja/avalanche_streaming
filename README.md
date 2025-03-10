@@ -58,8 +58,7 @@ docker compose exec -it spark-master spark-submit \
   --master spark://spark-master:7077 \
   --deploy-mode client \
   --conf "spark.cassandra.connection.host=cassandra_db" \
-  --packages com.datastax.spark:spark-cassandra-connector_2.12:3.5.1,org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.2 \
-  --conf "spark.jars=/opt/spark/spark-libs/spark-cassandra-connector_2.12-3.5.1.jar,/opt/spark/spark-libs/spark-sql-kafka-0-10_2.12-3.3.2.jar,/opt/spark/spark-libs/commons-pool2-2.11.1.jar,/opt/spark/spark-libs/kafka-clients-3.3.1.jar" \
+  --packages com.datastax.spark:spark-cassandra-connector_2.12:3.5.1,org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.2,org.apache.commons:commons-pool2:2.8.0,org.apache.kafka:kafka-clients:2.5.0,org.apache.spark:spark-token-provider-kafka-0-10_2.12:3.3.2
   /opt/spark/spark-jobs/avalanche_processor.py
 ```
 ### Monitoring and Management 🖥️

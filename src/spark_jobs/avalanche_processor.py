@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any
 
 from cassandra.cluster import Cluster, Session
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import from_json, col
+from pyspark.sql.functions import expr, from_json, col
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType
 
 logging.basicConfig(level=logging.INFO)
@@ -141,13 +141,11 @@ def create_spark_connection() -> Optional[SparkSession]:
         # Create SparkSession and load local JARs
         s_conn = (
             SparkSession.builder.appName("SparkAvalancheProcessor")
-            .config(
-                "spark.jars",
-                "/opt/spark/spark-libs/commons-pool2-2.11.1.jar,"
-                "/opt/spark/spark-libs/kafka-clients-3.3.1.jar,"
-                "/opt/spark/spark-libs/spark-cassandra-connector_2.12-3.5.1.jar,"
-                "/opt/spark/spark-libs/spark-sql-kafka-0-10_2.12-3.3.2.jar"
-            )
+            .config('spark.jars.packages', "com.datastax.spark:spark-cassandra-connector_2.12:3.3.0,"
+                                        "org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.2,"
+                                        "org.apache.commons:commons-pool2:2.8.0,"
+                                        "org.apache.kafka:kafka-clients:2.5.0,"
+                                        "org.apache.spark:spark-token-provider-kafka-0-10_2.12:3.3.2") \
             .config("spark.cassandra.connection.host", "cassandra_db")
             .getOrCreate()
         )
@@ -277,6 +275,7 @@ if __name__ == "__main__":
         spark_df = connect_to_kafka(spark_conn)
         if spark_df is not None:
             selection_df = create_selection_df_from_kafka(spark_df)
+            selection_df = selection_df.withColumn("id", expr("uuid()"))  # Generates a UUID if missing
             session = create_cassandra_connection()
 
             if session is not None:
