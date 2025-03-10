@@ -112,13 +112,6 @@ Apache Spark (via PySpark) is used to process and clean the incoming avalanche d
 ### 💾 **Cassandra**
 Cassandra is used to store the processed data in a distributed manner.
 
-## Contributing 🤝
-
-If you'd like to contribute to this project:
-
-1. Fork this repository.
-2. Create a feature branch (`git checkout -b feature-branch`).
-3. Commit your changes (`git commit -am 'Add new feature'`).
-4. Push to the branch (`git push origin feature-branch`).
-5. Create a new Pull Request.
-
+## TODOs
+- [ ] Add easy to use deployment using azure and terraform
+- [ ] Add user interface
