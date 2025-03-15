@@ -1,10 +1,13 @@
+import json
 import os
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
+import numpy as np
 import requests
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from kafka import KafkaProducer
 from requests import RequestException
 
 # Add project root to the system path
@@ -61,7 +64,9 @@ def dict_to_weatherdata(parsed_data: Dict[str, Any]) -> WeatherData:
     return weather
 
 
-def fetch_weather_data(region: AvalancheRegion, date: str) -> Dict[str, Any]:
+def fetch_weather_data_and_put_in_queue(
+    region: AvalancheRegion, date: str, kafka_producer: KafkaProducer
+) -> None:
     """Retrieves weather data for a specific region, start date, and end date.
 
     Args:
@@ -80,62 +85,90 @@ def fetch_weather_data(region: AvalancheRegion, date: str) -> Dict[str, Any]:
     """
     # Convert date string to datetime object
 
-    url = generate_weather_api_url(
-        region.lat, region.lon, start_date=date, end_date=date
+    urls = generate_weather_api_urls(
+        longitudes=(region.east_south_lon, region.west_north_lon),
+        latitudes=(region.west_north_lat, region.east_south_lat),
+        start_date=date,
+        end_date=date,
+        number_of_grid_cells_east=5,
     )
 
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
-    try:
-        response = requests.get(url, headers=headers, timeout=30)
-        response.raise_for_status()
-    except RequestException as err:
-        raise RequestException(f"The request for weather data failed: {err}") from err
-
-    try:
-        res: Dict[str, Any] = response.json()
-        res["start_date"] = date
-        res["end_date"] = date
-        res["region_id"] = region.region_id
-        res["region_name"] = region.name
-        return res
-    except Exception as err:
-        raise ValueError(
-            f"Failed to parse API response for weather data: {err}"
-        ) from err
+    for url in urls:
+        try:
+            response = requests.get(url, headers=headers, timeout=30)
+            res: Dict[str, Any] = response.json()
+            res["start_date"] = date
+            res["end_date"] = date
+            res["region_id"] = region.region_id
+            res["region_name"] = region.name
+            # Send data to Kafka topic
+            kafka_producer.send("weather_forecast", json.dumps(res).encode("utf-8"))
+        except RequestException as err:
+            raise RequestException(
+                f"The request for weather data failed: {err}"
+            ) from err
 
 
-def generate_weather_api_url(
-    latitude: float, longitude: float, start_date: str, end_date: str
-) -> str:
-    """Generates a URL for retrieving weather data.
+def generate_weather_api_urls(
+    latitudes: Tuple[float, float],
+    longitudes: Tuple[float, float],
+    start_date: str,
+    end_date: str,
+    number_of_grid_cells_east: int,
+) -> List[str]:
+    """Generates a list of URLs for retrieving weather data over a grid.
 
     Args:
-        latitude (float): The latitude of the location for which weather data is requested.
-        longitude (float): The longitude of the location for which weather data is requested.
+        latitudes (Tuple[float, float]): The southernmost and northernmost latitudes.
+        longitudes (Tuple[float, float]): The westernmost and easternmost longitudes.
         start_date (str): The start date of the desired weather data range.
         end_date (str): The end date of the desired weather data range.
+        number_of_grid_cells_east (int): The number of grid cells in the eastward direction.
 
     Returns:
-        str: The generated URL for retrieving weather data.
+        List[str]: A list of generated URLs for retrieving weather data for each grid cell.
     """
-    url = (
-        f"https://archive-api.open-meteo.com/v1/archive?latitude="
-        f"{latitude:.4f}&longitude={longitude:.4f}&"
-        f"start_date={start_date}&"
-        f"end_date={end_date}&"
-        f"daily=weathercode,temperature_2m_max,temperature_2m_min,temperature_2m_mean"
-        f",rain_sum,snowfall_sum,precipitation_hours,windspeed_10m_max,windgusts_10m_max"
-        f",winddirection_10m_dominant&timezone=Europe%2FBerlin"
-    )
-    return url
+    lat_min, lat_max = latitudes
+    lon_min, lon_max = longitudes
+
+    # Compute the step size for longitude
+    lon_step = (lon_max - lon_min) / number_of_grid_cells_east
+
+    # Estimate the latitude step to maintain square cells
+    # Convert degrees to kilometers (approximate conversion at mid-latitudes)
+    km_per_degree_lat = 111  # Approximate conversion factor
+    km_per_degree_lon = np.cos(np.radians((lat_min + lat_max) / 2)) * 111
+    lat_step = lon_step * (km_per_degree_lon / km_per_degree_lat)
+
+    # Compute the number of latitude cells needed to maintain square cells
+    number_of_grid_cells_north = int(round((lat_max - lat_min) / lat_step))
+
+    # Generate grid of latitudes and longitudes
+    latitudes = np.linspace(lat_min, lat_max, number_of_grid_cells_north + 1)
+    longitudes = np.linspace(lon_min, lon_max, number_of_grid_cells_east + 1)
+
+    urls = []
+    for i in range(number_of_grid_cells_north):
+        for j in range(number_of_grid_cells_east):
+            lat = (latitudes[i] + latitudes[i + 1]) / 2  # Center of the cell
+            lon = (longitudes[j] + longitudes[j + 1]) / 2  # Center of the cell
+            url = (
+                f"https://archive-api.open-meteo.com/v1/archive?latitude="
+                f"{lat:.4f}&longitude={lon:.4f}&"
+                f"start_date={start_date}&"
+                f"end_date={end_date}&"
+                f"daily=weathercode,temperature_2m_max,temperature_2m_min,temperature_2m_mean"
+                f",rain_sum,snowfall_sum,precipitation_hours,windspeed_10m_max,windgusts_10m_max"
+                f",winddirection_10m_dominant&timezone=Europe%2FBerlin"
+            )
+            urls.append(url)
+
+    return urls
 
 
 def fetch_data_and_store_in_kafka():
-    import json
-
-    from kafka import KafkaProducer
-
     producer = KafkaProducer(bootstrap_servers=["broker:29092"], max_block_ms=5000)
 
     yesterday_date = (datetime.date.today() - datetime.timedelta(days=1)).strftime(
@@ -144,9 +177,9 @@ def fetch_data_and_store_in_kafka():
 
     try:
         for region in AVALANCHE_REGIONS:
-            json_response = fetch_weather_data(region=region, date=yesterday_date)
-            # Send data to Kafka topic
-            producer.send("weather_forecast", json.dumps(json_response).encode("utf-8"))
+            fetch_weather_data_and_put_in_queue(
+                region=region, date=yesterday_date, kafka_producer=producer
+            )
     except Exception as e:
         logging.error(f"An error occured: {e}")
         raise Exception(e)
