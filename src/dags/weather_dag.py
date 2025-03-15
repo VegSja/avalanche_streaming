@@ -61,15 +61,14 @@ def dict_to_weatherdata(parsed_data: Dict[str, Any]) -> WeatherData:
     return weather
 
 
-def fetch_weather_data(
-    region: AvalancheRegion, start_date: str, end_date: str
-) -> Dict[str, Any]:
+def fetch_weather_data(region: AvalancheRegion, date: str) -> Dict[str, Any]:
     """Retrieves weather data for a specific region, start date, and end date.
 
     Args:
         region (AvalancheRegion): The region for which weather data is requested.
-        start_date (str): The start date of the desired weather data range.
-        end_date (str): The end date of the desired weather data range.
+        date (str): Format: %Y-%m-%d. The date for which we fetch the weather summary.
+                    The function sets the start date to the beginning of the given date
+                    and the end date to the end of the same date.
 
     Returns:
         WeatherData: The retrieved WeatherData object
@@ -79,7 +78,11 @@ def fetch_weather_data(
         RequestException: If the request for weather data fails.
         ValueError: If there is an error parsing the API response for weather data.
     """
-    url = generate_url(region.lat, region.lon, start_date, end_date)
+    # Convert date string to datetime object
+
+    url = generate_weather_api_url(
+        region.lat, region.lon, start_date=date, end_date=date
+    )
 
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
@@ -91,8 +94,10 @@ def fetch_weather_data(
 
     try:
         res: Dict[str, Any] = response.json()
-        res["start_date"] = start_date
-        res["end_date"] = end_date
+        res["start_date"] = date
+        res["end_date"] = date
+        res["region_id"] = region.region_id
+        res["region_name"] = region.name
         return res
     except Exception as err:
         raise ValueError(
@@ -100,7 +105,7 @@ def fetch_weather_data(
         ) from err
 
 
-def generate_url(
+def generate_weather_api_url(
     latitude: float, longitude: float, start_date: str, end_date: str
 ) -> str:
     """Generates a URL for retrieving weather data.
@@ -133,13 +138,13 @@ def fetch_data_and_store_in_kafka():
 
     producer = KafkaProducer(bootstrap_servers=["broker:29092"], max_block_ms=5000)
 
-    today_date = datetime.date.today().strftime("%Y-%m-%d")
+    yesterday_date = (datetime.date.today() - datetime.timedelta(days=1)).strftime(
+        "%Y-%m-%d"
+    )
 
     try:
         for region in AVALANCHE_REGIONS:
-            json_response = fetch_weather_data(
-                region=region, start_date=today_date, end_date=today_date
-            )
+            json_response = fetch_weather_data(region=region, date=yesterday_date)
             # Send data to Kafka topic
             producer.send("weather_forecast", json.dumps(json_response).encode("utf-8"))
     except Exception as e:
