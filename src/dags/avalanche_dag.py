@@ -1,23 +1,22 @@
-from typing import List, Dict, Any
-import requests
 import os
 import sys
+from typing import Any, Dict, List
 
-from requests import RequestException
-
+import requests
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-
+from requests import RequestException
 
 # Add project root to the system path
 project_root = os.path.abspath(os.path.join(os.getcwd()))
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-from src.repositories.constants import AVALANCHE_REGIONS
-from src.data_classes.avalanche_region import AvalancheRegion
-import logging
 import datetime
+import logging
+
+from src.data_classes.avalanche_region import AvalancheRegion
+from src.repositories.constants import AVALANCHE_REGIONS
 
 default_args = {
     "owner": " vegsja",
@@ -104,6 +103,7 @@ def get_avalanche_data(
 
 def fetch_data_and_store_in_kafka():
     import json
+
     from kafka import KafkaProducer
 
     producer = KafkaProducer(bootstrap_servers=["broker:29092"], max_block_ms=5000)

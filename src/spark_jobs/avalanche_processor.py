@@ -1,17 +1,12 @@
 import logging
-from typing import Optional, Dict, Any
 import uuid
+from typing import Any, Dict, Optional
 
 from cassandra.cluster import Cluster, Session
-from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import expr, from_json, col, udf
-from pyspark.sql.types import (
-    StructType,
-    StructField,
-    StringType,
-    IntegerType,
-    TimestampType,
-)
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql.functions import col, expr, from_json, udf
+from pyspark.sql.types import (IntegerType, StringType, StructField,
+                               StructType, TimestampType)
 
 logging.basicConfig(level=logging.INFO)
 

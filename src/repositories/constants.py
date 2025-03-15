@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import List
+
 from src.data_classes.avalanche_region import AvalancheRegion
 
 AVALANCHE_REGIONS: List[AvalancheRegion] = [

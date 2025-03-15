@@ -1,9 +1,9 @@
-from typing import List, Dict, Any
-import requests
+from typing import Any, Dict, List
 
+import requests
+from Constants.avalanche_regions import AvalancheRegion
 from requests import RequestException
 
-from Constants.avalanche_regions import AvalancheRegion
 from data_classes.avalache_data import VarsomAvalancheResponse
 
 
