@@ -83,6 +83,3 @@ def generate_url(region_id: str, start_date: str, end_date: str) -> str:
         f"{region_id}/{language_key}/{start_date}/{end_date}"
     )
     return url
-
-
-print("Hello")

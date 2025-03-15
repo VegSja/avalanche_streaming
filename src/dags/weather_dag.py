@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import requests
 from airflow import DAG
@@ -28,38 +28,11 @@ logging.basicConfig(level=logging.INFO)
 from typing import Any, Dict
 
 import requests
-from Constants.avalanche_regions import AvalancheRegion
 from requests.exceptions import RequestException
 
-from data_classes.weather_data import DailyData, DailyUnits, WeatherData
-
-
-def from_nested_dict(dict_input: Dict[str, Any]) -> Any:
-    """Converts a nested dictionary into the
-     appropriate data structure based on the "__type__" field.
-
-    Args:
-
-        dict_input (Dict[str, Any]): The input dictionary to be converted.
-
-    Returns:
-        Any: The converted nested data structure
-         based on the "__type__" field in the input dictionary.
-    """
-    if "__type__" in dict_input:
-        type_name = dict_input.pop("__type__")
-        if type_name == "WeatherData":
-            dict_input["daily"] = DailyData(**dict_input["daily"])
-            dict_input["daily_units"] = DailyUnits(**dict_input["daily_units"])
-            return WeatherData(**dict_input)
-        if type_name == "DailyData":
-            return DailyData(**dict_input)
-        if type_name == "DailyUnits":
-            return DailyUnits(**dict_input)
-    return dict_input
-
-
-from_nested_dict("hello")
+from data_classes.weather_data import WeatherData
+from src.data_classes.daily_data import DailyData, DailyUnits
+from src.repositories.constants import AvalancheRegion
 
 
 def dict_to_weatherdata(parsed_data: Dict[str, Any]) -> WeatherData:
@@ -88,9 +61,9 @@ def dict_to_weatherdata(parsed_data: Dict[str, Any]) -> WeatherData:
     return weather
 
 
-def get_weather_data(
+def fetch_weather_data(
     region: AvalancheRegion, start_date: str, end_date: str
-) -> WeatherData:
+) -> Dict[str, Any]:
     """Retrieves weather data for a specific region, start date, and end date.
 
     Args:
@@ -118,8 +91,9 @@ def get_weather_data(
 
     try:
         res: Dict[str, Any] = response.json()
-        weather = dict_to_weatherdata(res)
-        return weather
+        res["start_date"] = start_date
+        res["end_date"] = end_date
+        return res
     except Exception as err:
         raise ValueError(
             f"Failed to parse API response for weather data: {err}"
@@ -163,21 +137,18 @@ def fetch_data_and_store_in_kafka():
 
     try:
         for region in AVALANCHE_REGIONS:
-            json_response = get_avalanche_data(
+            json_response = fetch_weather_data(
                 region=region, start_date=today_date, end_date=today_date
-            )[
-                0
-            ]  # Since we are only getting one date.
-            # Send data to Kafka topic
-            producer.send(
-                "avalanche_region_warning", json.dumps(json_response).encode("utf-8")
             )
+            # Send data to Kafka topic
+            producer.send("weather_forecast", json.dumps(json_response).encode("utf-8"))
     except Exception as e:
         logging.error(f"An error occured: {e}")
+        raise Exception(e)
 
 
 with DAG(
-    "avalanche_fetcher",
+    "weather_dag",
     default_args=default_args,
     schedule_interval="@daily",
     catchup=False,
