@@ -6,6 +6,8 @@ __pycache__/
 # C extensions
 *.so
 
+# Neovim files
+*.DS_STORE
 # Distribution / packaging
 .Python
 build/
